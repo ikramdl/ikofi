@@ -1,18 +1,19 @@
 print("Welcome to iKofi!")
-#listing our products and their prices.
 drinks = ["Espresso", "Americano", "Latte", "Capuccino", "Mocha","Affogato", "Iced Americano", "Iced Latte", "Pretty in Pink"]
 prices = [10, 12, 15, 18, 20, 22, 14, 16, 12]
-#working on the interacion with the customer
 More = True
-Total = 0
-quantities=[]
 orders=[]
-line_totals=[]
-#using a function for displaying the drinks with their prices on numbered list as a menu
+
+
+
+
 def display_menu():
     print("Take a look at our menu:")
     for i in range(len(drinks)):
         print(f"{i+1}.{drinks[i]} - ${prices[i]}")
+
+
+
 def take_order():
     #Taking the customer's order. 
     order = (input("What would you like to order? (please enter the index of the drink you'd like to order)"))
@@ -29,8 +30,17 @@ def take_order():
     while not quantity.isdigit():
            print(f"Invalid quantity, please make sure you're selecting a number")
            quantity = input("How many would you like to order?")
+    order_line = {
+        "drink": drinks[int(order)-1],
+        "price": prices[int(order)-1],
+        "quantity": int(quantity),
+    }
+    order_line["total"] = order_line["price"]*order_line["quantity"]
     #printing the order to the customer with the price.
-    return order, quantity
+    return order_line 
+
+
+
 def another_order():
     Another = input(f"Would you like to add another product? (yes/no)").lower()
     while Another != "yes" and Another != "no":
@@ -41,16 +51,19 @@ def another_order():
     else:
         print(f"Thank you for your order, please proceed for the payment!")
         return False              
+
+
+
 def display_receipt():
     print("=============================")
     print("           iKOFI")
     print("=============================")
     print("                             ")
-    for i in range (len(orders)):
-        print(f"{drinks[orders[i]-1]} X {quantities[i]} = ${line_totals[i]}")
+    for order in orders:
+        print(f"{order['drink']} X {order['quantity']} = ${order['total']}")
     print("                             ")
     print("-----------------------------")
-    print(f"TOTAL: ${Total}")
+    print(f"TOTAL: ${sum(order['total'] for order in orders)}")
     print("=============================")
     print("Thank you, please come again!")
 
@@ -58,12 +71,16 @@ def display_receipt():
 display_menu()
 while More:
 #taking the customer's order
-    order, quantity = take_order()
-    orders.append(order)
-    quantities.append(int(quantity))
-    line_total = prices[order-1] * int(quantity)
-    line_totals.append(line_total)
-    Total = sum(line_totals)
+    found = False
+    order_line = take_order()
+    for order in orders:
+        if order['drink'] == order_line['drink']:
+            order['quantity'] += order_line['quantity']
+            order['total'] += order_line['total']
+            found = True
+            break
+    if not found:
+            orders.append(order_line)
     More = another_order()
 display_receipt()
 
