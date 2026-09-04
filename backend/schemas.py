@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import List
 from datetime import datetime
 
@@ -12,8 +12,15 @@ class MenuItemResponse(BaseModel):
     name: str
     price: int
 
-    class config:
-        from_attributes: True
+    model_config = ConfigDict(from_attributes=True)
+
+class OrderItemResponse(BaseModel):
+    id: int
+    name: str
+    price: int
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class OrderResponse(BaseModel):
     id: int
@@ -22,5 +29,4 @@ class OrderResponse(BaseModel):
     status: str
     items: List[OrderItemCreate]
 
-    class config:
-        from_attributes: True
+    model_config = ConfigDict(from_attributes=True)
