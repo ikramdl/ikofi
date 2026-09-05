@@ -73,3 +73,36 @@ def add_to_cart(order: OrderItemRequest, db: Session = Depends(get_db)):
         "cart": cart
     }
 
+@app.post("/checkout")
+def checkout(db:Session = Depends(get_db)):
+    cart_total = 0
+    for cart_item in cart:
+        cart += cart_item["total"]
+    new_order = Order(grand_total=grand_total)
+    db.add(new_order)
+    db.commit()
+    db.refresh(new_order)
+    for cart_item in cart:
+        new_order_item = OrderItem(
+            order_id = new_order.id,
+            item_id = cart["item_id"],
+            quantity = cart["item_quantity"]
+        )
+@app.delete("/menu/{item_id}")
+def delete_item(item_id:int, db: Session = Depends(get_db)):
+    item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail = "No Item Found!")
+    db.delete(item)
+    db.commit()
+    return {"message":"Item Deleted Successfully!"}
+@app.put("/menu/{item_id}")
+def update_item(item_id:int, menu_item: MenuItemRequest, db: Session = Depends(get_db)):
+    item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail = "No Item Found!")
+    item.name = menu_item.name
+    item.price = menu_item.price
+    db.commit()
+    db.refresh(item)
+    return item
