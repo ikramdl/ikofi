@@ -6,12 +6,12 @@ Base.metadata.create_all(bind=engine)
 def seed_menu():
     db = SessionLocal()
     
-    # Check if menu items are already seeded
     existing = db.query(MenuItem).first()
     if existing:
         print("Menu items already exist in the database.")
         db.close()
         return
+
     initial_menu = [
         {"name": "Espresso", "price": 10.00},
         {"name": "Americano", "price": 12.00},
@@ -24,13 +24,12 @@ def seed_menu():
         {"name": "Pretty in Pink", "price": 12.00},
     ]
 
-
     for item in initial_menu:
-        db.add(MenuItem(name = item["name"], price =item["price"]))
+        db.add(MenuItem(name=item["name"], price=item["price"]))
+
     db.commit()
     print("Database successfully seeded with menu items!")
     db.close()
 
-
-    if __name__ == "__main__":
-        seed_menu()
+if __name__ == "__main__":
+    seed_menu()

@@ -16,7 +16,7 @@ class Order(Base):
     id = Column(Integer, primary_key = True, index = True)
     created_at = Column(DateTime, default=datetime.utcnow)
     grand_total  = Column(Numeric(10,2), nullable = False)
-    satus = Column(String(50), default = "Confirmed")
+    status = Column(String(50), default = "Confirmed")
 
     items = relationship("OrderItem", back_populates = "order", cascade = "all, delete-orphan")
 
@@ -26,6 +26,7 @@ class OrderItem(Base):
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"), index=False)
     item_id = Column(Integer, ForeignKey("menu_items.id"), index=False)
-
+    quantity = Column(Integer, nullable=False)
+    
     order = relationship("Order", back_populates="items")
     menu_item = relationship("MenuItem")
