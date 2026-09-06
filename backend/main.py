@@ -1,12 +1,39 @@
 from fastapi import FastAPI, HTTPException
 from fastapi import Depends
 from sqlalchemy.orm import Session
-from .database import get_db
-from .models import MenuItem, Order, OrderItem
+from .database import get_db, engine, Base
+from .models import MenuItem, Order, OrderItem, User
 from pydantic import BaseModel
+import bcrypt
+
+Base.metadata.create_all(bind=engine)
 
 #opening the home page
 app = FastAPI()
+
+class OrderItemRequest(BaseModel):
+    quantity: int
+    item_id: int
+
+class MenuItemRequest(BaseModel):
+    name: str
+    price: int
+
+class UserRequest(BaseModel):
+    username: str
+    email: str
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+    
+
 @app.get("/")
 def home():
     return {"message": "Welcome to iKofi!"}
@@ -23,12 +50,7 @@ def get_menu_item(item_id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code = 404, detail = "Item not found!")
     return item
-class OrderItemRequest(BaseModel):
-    quantity: int
-    item_id: int
-class MenuItemRequest(BaseModel):
-    name: str
-    price: int
+
 @app.post("/menu")
 def add_menu_item(menu_item: MenuItemRequest, db : Session = Depends(get_db)):
     new_item = MenuItem(
@@ -73,21 +95,7 @@ def add_to_cart(order: OrderItemRequest, db: Session = Depends(get_db)):
         "cart": cart
     }
 
-@app.post("/checkout")
-def checkout(db:Session = Depends(get_db)):
-    cart_total = 0
-    for cart_item in cart:
-        cart += cart_item["total"]
-    new_order = Order(grand_total=grand_total)
-    db.add(new_order)
-    db.commit()
-    db.refresh(new_order)
-    for cart_item in cart:
-        new_order_item = OrderItem(
-            order_id = new_order.id,
-            item_id = cart["item_id"],
-            quantity = cart["item_quantity"]
-        )
+
 @app.delete("/menu/{item_id}")
 def delete_item(item_id:int, db: Session = Depends(get_db)):
     item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
@@ -106,3 +114,28 @@ def update_item(item_id:int, menu_item: MenuItemRequest, db: Session = Depends(g
     db.commit()
     db.refresh(item)
     return item
+@app.post("/user", response_model = UserResponse)
+def register_user(user: UserRequest, db:Session = Depends(get_db)):
+    hashed_password = bcrypt.hashpw(
+    user.password.encode("utf-8"),
+    bcrypt.gensalt()
+    ).decode("utf-8")
+    new_user = User(
+    username=user.username,
+    email=user.email,
+    password=hashed_password
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    return new_user
+
+@app.post("/login")
+def login_user(login: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == login.email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not bcrypt.checkpw( login.password.encode("utf-8"), user.password.encode("utf-8")):
+        raise HTTPException(status_code = 401, detail = "Invalid Email or Password" )
+    return {"message": "Login successful!"}
