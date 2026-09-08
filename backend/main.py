@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
 from .database import get_db, engine, Base
 from .models import MenuItem, Order, OrderItem, User
@@ -77,20 +77,28 @@ def get_menu(db: Session = Depends(get_db)):
     return db.query(MenuItem).all()
 
 @app.post("/login")
+def login_user(
+    username: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    user = db.query(User).filter(User.email == username).first()
 
-def login_user(login: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == login.email).first()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
-    if not bcrypt.checkpw( login.password.encode("utf-8"), user.password.encode("utf-8")):
-        raise HTTPException(status_code = 401, detail = "Invalid Email or Password" )
+
+    if not bcrypt.checkpw(
+        password.encode("utf-8"),
+        user.password.encode("utf-8")
+    ):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+
     token = create_access_token(user.id)
+
     return {
-        "message": "Login successful!",
-        "access_token": token
+        "access_token": token,
+        "token_type": "bearer"
     }
-
-
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     payload = verify_access_token(token)
     if payload is None :
@@ -171,7 +179,7 @@ def add_to_cart(order: OrderItemRequest, db: Session = Depends(get_db)):
 
 @app.delete("/menu/{item_id}")
 
-def delete_item(item_id:int, db: Session = Depends(get_db)):
+def delete_item(item_id:int, db: Session = Depends(get_db), current_user = Depends(require_admin)):
     item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
     if not item:
         raise HTTPException(status_code=404, detail = "No Item Found!")
@@ -180,7 +188,7 @@ def delete_item(item_id:int, db: Session = Depends(get_db)):
     return {"message":"Item Deleted Successfully!"}
 @app.put("/menu/{item_id}")
 
-def update_item(item_id:int, menu_item: MenuItemRequest, db: Session = Depends(get_db)):
+def update_item(item_id:int, menu_item: MenuItemRequest, current_user = Depends(require_admin), db: Session = Depends(get_db)):
     item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
     if not item:
         raise HTTPException(status_code=404, detail = "No Item Found!")
