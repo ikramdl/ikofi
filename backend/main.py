@@ -35,7 +35,6 @@ def verify_access_token(token: str):
         return None
 
 
-print(create_access_token(17))
 Base.metadata.create_all(bind=engine)
 
 #opening the home page
@@ -77,6 +76,42 @@ def home():
 def get_menu(db: Session = Depends(get_db)):
     return db.query(MenuItem).all()
 
+@app.post("/login")
+
+def login_user(login: LoginRequest, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.email == login.email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not bcrypt.checkpw( login.password.encode("utf-8"), user.password.encode("utf-8")):
+        raise HTTPException(status_code = 401, detail = "Invalid Email or Password" )
+    token = create_access_token(user.id)
+    return {
+        "message": "Login successful!",
+        "access_token": token
+    }
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    payload = verify_access_token(token)
+    if payload is None :
+        raise HTTPException ( status_code=401, detail = "Invalid or expired token")
+    user_id = payload["user_id"]
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None:
+        raise HTTPException( status_code=401, detail="User not found")
+    return user
+def require_admin(current_user = Depends(get_current_user)):
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return current_user
+@app.get("/profile", response_model = UserResponse)
+
+def get_profile(current_user = Depends(get_current_user)):
+    return current_user
+
+
+
+
 #searching an item from the menu by id
 @app.get("/menu/{item_id}")
 
@@ -88,7 +123,7 @@ def get_menu_item(item_id: int, db: Session = Depends(get_db)):
 
 @app.post("/menu")
 
-def add_menu_item(menu_item: MenuItemRequest, db : Session = Depends(get_db)):
+def add_menu_item(menu_item: MenuItemRequest, db : Session = Depends(get_db), current_user = Depends(require_admin)):
     new_item = MenuItem(
         name = menu_item.name,
         price = menu_item.price
@@ -172,38 +207,4 @@ def register_user(user: UserRequest, db:Session = Depends(get_db)):
     db.refresh(new_user)
     
     return new_user
-
-@app.post("/login")
-
-def login_user(login: LoginRequest, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.email == login.email).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    if not bcrypt.checkpw( login.password.encode("utf-8"), user.password.encode("utf-8")):
-        raise HTTPException(status_code = 401, detail = "Invalid Email or Password" )
-    token = create_access_token(user.id)
-    return {
-        "message": "Login successful!",
-        "access_token": token
-    }
-
-
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    payload = verify_access_token(token)
-    if payload is None :
-        raise HTTPException ( status_code=401, detail = "Invalid or expired token")
-    user_id = payload["user_id"]
-    user = db.query(User).filter(User.id == user_id).first()
-    if user is None:
-        raise HTTPException(
-            status_code=401,
-            detail="User not found"
-    )
-    return user
-
-@app.get("/profile", response_model = UserResponse)
-
-def get_profile(current_user = Depends(get_current_user)):
-    return current_user
-
 
