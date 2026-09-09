@@ -42,6 +42,9 @@ app = FastAPI()
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+#----------------------------------------------------------- CLASSES -------------------------------------------------------------------#
+
+
 class OrderItemRequest(BaseModel):
     quantity: int
     item_id: int
@@ -65,16 +68,22 @@ class LoginRequest(BaseModel):
     password: str
     
 
+#------------------------------------------------------------------------------------------------------------------------------------#
+
 @app.get("/")
 
 def home():
     return {"message": "Welcome to iKofi!"}
+
+#-----------------------------------------------------------GET MENU-----------------------------------------------------------------#
 
 #Opening the menu
 @app.get("/menu")
 
 def get_menu(db: Session = Depends(get_db)):
     return db.query(MenuItem).all()
+
+#-----------------------------------------------------------POST LOGIN-----------------------------------------------------------------#
 
 @app.post("/login")
 def login_user(
@@ -112,13 +121,15 @@ def require_admin(current_user = Depends(get_current_user)):
     if current_user.role != 'admin':
         raise HTTPException(status_code=403, detail="Admin access required")
     return current_user
+
+#-----------------------------------------------------------GET PROFILE-------------------------------------------------------------------#
+
 @app.get("/profile", response_model = UserResponse)
 
 def get_profile(current_user = Depends(get_current_user)):
     return current_user
 
-
-
+#-----------------------------------------------------------GET MENU ITEM-----------------------------------------------------------------#
 
 #searching an item from the menu by id
 @app.get("/menu/{item_id}")
@@ -128,6 +139,8 @@ def get_menu_item(item_id: int, db: Session = Depends(get_db)):
     if not item:
         raise HTTPException(status_code = 404, detail = "Item not found!")
     return item
+
+#-----------------------------------------------------------POST MENU----------------------------------------------------------------------#
 
 @app.post("/menu")
 
@@ -141,41 +154,106 @@ def add_menu_item(menu_item: MenuItemRequest, db : Session = Depends(get_db), cu
     db.refresh(new_item)
     return new_item
 
-cart = []
+#-----------------------------------------------------------POST CART---------------------------------------------------------------------#
 
 @app.post("/cart")
 
-def add_to_cart(order: OrderItemRequest, db: Session = Depends(get_db)):
+def add_to_cart(order: OrderItemRequest, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    current_order = db.query(Order).filter(Order.user_id == current_user.id, Order.status == "Pending").first()
+    if current_order is None:
+        current_order = Order(
+            user_id=current_user.id,
+            grand_total=0,
+            status="Pending"
+        )
+        db.add(current_order)
+        db.commit()
+        db.refresh(current_order)
     item = db.query(MenuItem).filter(MenuItem.id == order.item_id ).first()
     if not item:
         raise HTTPException(status_code = 404, detail ="Item Not Found!")
-    for cart_item in cart:
-        if cart_item["item_id"] == order.item_id:
+    existing_item = db.query(OrderItem).filter(OrderItem.order_id == current_order.id, OrderItem.item_id == item.id).first()
+    if existing_item:
+        existing_item.quantity += order.quantity
+    else:
+        new_order_item = OrderItem(
+            item_id=item.id,
+            quantity=order.quantity,
+            order_id=current_order.id,
+        )
+        db.add(new_order_item)
 
-            cart_item["quantity"] += order.quantity
+    current_order.grand_total = 0
+    for order_item in current_order.items:
+        menu_item = db.query(MenuItem).filter(MenuItem.id == order_item.item_id).first()
+        current_order.grand_total += menu_item.price * order_item.quantity
+        db.commit()
+    return {
+        "message": "Your cart has been updated"
+    }
 
-            cart_item["total"] = cart_item["quantity"] * cart_item["price"]
+#-----------------------------------------------------------GET CART-----------------------------------------------------------------#
 
-            return {
-                "message": "Your cart has been updated",
-                "cart": cart
-            }
-    total = item.price * order.quantity
+@app.get("/cart")
+def get_cart(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    current_order = db.query(Order).filter( Order.user_id == current_user.id, Order.status == "Pending").first()
+    if current_order is None:
+        return {
+            "message": "Your cart is empty"
+        }
+    order_items = db.query(OrderItem).filter( OrderItem.order_id == current_order.id ).all()
 
-    new_entry = {
+    cart = []
+    for order_item in order_items:
+        item = db.query(MenuItem).filter(MenuItem.id == order_item.item_id).first()
+        cart_item = {
         "item_id": item.id,
         "name": item.name,
         "price": item.price,
-        "quantity": order.quantity,
-        "total": total
+        "quantity": order_item.quantity,
+        "total": item.price * order_item.quantity
+        }
+        cart.append(cart_item)
+    return {
+    "order_id": current_order.id,
+    "status": current_order.status,
+    "grand_total": current_order.grand_total,
+    "cart": cart
     }
-    cart.append(new_entry)
+
+#-----------------------------------------------------------DELETE CART------------------------------------------------------------------#
+
+
+@app.delete("/cart/{item_id}")
+def remove_from_cart(item_id: int, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    current_order = db.query(Order).filter(Order.user_id == current_user.id,Order.status == "Pending").first()
+
+    if current_order is None:
+        raise HTTPException(status_code=404,detail="Cart is empty")
+
+    order_item = db.query(OrderItem).filter(OrderItem.order_id == current_order.id, OrderItem.item_id == item_id).first()
+
+    if order_item is None:
+        raise HTTPException( status_code=404, detail="Item not found in cart")
+    
+    db.delete(order_item)
+    db.flush()
+
+    current_order.grand_total = 0
+
+    for item in current_order.items:
+        menu_item = db.query(MenuItem).filter(
+            MenuItem.id == item.item_id
+        ).first()
+
+        current_order.grand_total += menu_item.price * item.quantity
+
+    db.commit()
 
     return {
-        "message": "Your cart has been updated",
-        "cart": cart
+        "message": "Item removed from cart"
     }
-
+#-----------------------------------------------------------DELETE MENU ITEM---------------------------------------------------------------#
 
 @app.delete("/menu/{item_id}")
 
@@ -197,6 +275,8 @@ def update_item(item_id:int, menu_item: MenuItemRequest, current_user = Depends(
     db.commit()
     db.refresh(item)
     return item
+
+#-----------------------------------------------------------POST USER-----------------------------------------------------------------#
 
 @app.post("/user", response_model = UserResponse)
 
