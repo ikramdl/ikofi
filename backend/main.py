@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends, Form
 from sqlalchemy.orm import Session
 from .database import get_db, engine, Base
 from .models import MenuItem, Order, OrderItem, User
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import bcrypt
 import os
 from pathlib import Path
@@ -46,7 +46,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
 
 class OrderItemRequest(BaseModel):
-    quantity: int
+    quantity: int = Field(ge=1)
     item_id: int
 
 class MenuItemRequest(BaseModel):

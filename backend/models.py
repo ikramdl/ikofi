@@ -16,7 +16,9 @@ class Order(Base):
     id = Column(Integer, primary_key = True, index = True)
     created_at = Column(DateTime, default=datetime.utcnow)
     grand_total  = Column(Numeric(10,2), nullable = False)
-    status = Column(String(50), default = "Confirmed")
+    status = Column(String(50), default = "Pending")
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user = relationship("User", back_populates="orders")
 
     items = relationship("OrderItem", back_populates = "order", cascade = "all, delete-orphan")
 
@@ -36,6 +38,7 @@ class User(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     role = Column(String(20), default = "customer")
+    orders = relationship("Order", back_populates="user")
     username = Column(String(50), nullable=False)
     email = Column(String(100), nullable=False)
     password = Column(String(255), nullable=False)
