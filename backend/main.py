@@ -155,6 +155,49 @@ def add_menu_item(menu_item: MenuItemRequest, db : Session = Depends(get_db), cu
     db.refresh(new_item)
     return new_item
 
+#-----------------------------------------------------------DELETE MENU ITEM---------------------------------------------------------------#
+
+@app.delete("/menu/{item_id}")
+
+def delete_item(item_id:int, db: Session = Depends(get_db), current_user = Depends(require_admin)):
+    item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail = "No Item Found!")
+    db.delete(item)
+    db.commit()
+    return {"message":"Item Deleted Successfully!"}
+@app.put("/menu/{item_id}")
+
+def update_item(item_id:int, menu_item: MenuItemRequest, current_user = Depends(require_admin), db: Session = Depends(get_db)):
+    item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail = "No Item Found!")
+    item.name = menu_item.name
+    item.price = menu_item.price
+    db.commit()
+    db.refresh(item)
+    return item
+
+#-----------------------------------------------------------POST USER-----------------------------------------------------------------#
+
+@app.post("/user", response_model = UserResponse)
+
+def register_user(user: UserRequest, db:Session = Depends(get_db)):
+    hashed_password = bcrypt.hashpw(
+    user.password.encode("utf-8"),
+    bcrypt.gensalt()
+    ).decode("utf-8")
+    new_user = User(
+    username=user.username,
+    email=user.email,
+    password=hashed_password
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    return new_user
+
 #-----------------------------------------------------------POST CART---------------------------------------------------------------------#
 
 @app.post("/cart")
@@ -275,46 +318,15 @@ def remove_from_cart(item_id: int, db: Session = Depends(get_db), current_user =
     return {
         "message": "Item removed from cart"
     }
-#-----------------------------------------------------------DELETE MENU ITEM---------------------------------------------------------------#
+#-----------------------------------------------------------POST CHECKOUT------------------------------------------------------------------#
 
-@app.delete("/menu/{item_id}")
-
-def delete_item(item_id:int, db: Session = Depends(get_db), current_user = Depends(require_admin)):
-    item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail = "No Item Found!")
-    db.delete(item)
+@app.post("/checkout")
+def checkout(db:Session = Depends (get_db), current_user = Depends(get_current_user)):
+    current_order = db.query(Order).filter( Order.user_id == current_user.id, Order.status == "Pending").first()
+    if current_order is None:
+        raise HTTPException(status_code = 404, detail = "Cart is empty!")
+    if not current_order.items:
+        raise HTTPException(status_code = 400, detail = "Cart is empty!")
+    current_order.status = "Confirmed"
     db.commit()
-    return {"message":"Item Deleted Successfully!"}
-@app.put("/menu/{item_id}")
-
-def update_item(item_id:int, menu_item: MenuItemRequest, current_user = Depends(require_admin), db: Session = Depends(get_db)):
-    item = db.query(MenuItem).filter(item_id == MenuItem.id).first()
-    if not item:
-        raise HTTPException(status_code=404, detail = "No Item Found!")
-    item.name = menu_item.name
-    item.price = menu_item.price
-    db.commit()
-    db.refresh(item)
-    return item
-
-#-----------------------------------------------------------POST USER-----------------------------------------------------------------#
-
-@app.post("/user", response_model = UserResponse)
-
-def register_user(user: UserRequest, db:Session = Depends(get_db)):
-    hashed_password = bcrypt.hashpw(
-    user.password.encode("utf-8"),
-    bcrypt.gensalt()
-    ).decode("utf-8")
-    new_user = User(
-    username=user.username,
-    email=user.email,
-    password=hashed_password
-    )
-    db.add(new_user)
-    db.commit()
-    db.refresh(new_user)
-    
-    return new_user
-
+    return {"message": "Order confirmed successfully"}
