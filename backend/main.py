@@ -338,6 +338,6 @@ def checkout(db:Session = Depends (get_db), current_user = Depends(get_current_u
 @app.get("/orders")
 def get_orders(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
     orders = db.query(Order).filter(Order.user_id == current_user.id).all()
-    if orders is None:
+    if not orders:
         raise HTTPException(status_code = 404, detail = "No orders Found!")
     return orders
