@@ -226,12 +226,14 @@ def add_to_cart(order: OrderItemRequest, db: Session = Depends(get_db), current_
             order_id=current_order.id,
         )
         db.add(new_order_item)
+        db.flush()
 
     current_order.grand_total = 0
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == current_order.id).all()
     for order_item in current_order.items:
         menu_item = db.query(MenuItem).filter(MenuItem.id == order_item.item_id).first()
         current_order.grand_total += menu_item.price * order_item.quantity
-        db.commit()
+    db.commit()
     return {
         "message": "Your cart has been updated"
     }
@@ -242,7 +244,7 @@ def update_cart(item_id: int, order: UpdateCartRequest, db: Session = Depends(ge
     current_order = db.query(Order).filter(Order.user_id == current_user.id, Order.status == "Pending").first()
     if current_order is None:
         raise HTTPException( status_code = 404, detail = "Cart is Empty")
-    order_item = db.query(OrderItem).filter(OrderItem.id == current_order.id, OrderItem.item_id == item_id).first()
+    order_item = db.query(OrderItem).filter(OrderItem.order_id == current_order.id, OrderItem.item_id == item_id).first()
     if order_item is None:
         raise HTTPException(status_code = 404, detail = "Item not found in cart")
     order_item.quantity = order.quantity
@@ -330,3 +332,12 @@ def checkout(db:Session = Depends (get_db), current_user = Depends(get_current_u
     current_order.status = "Confirmed"
     db.commit()
     return {"message": "Order confirmed successfully"}
+
+#-----------------------------------------------------------GET ORDERS------------------------------------------------------------------#
+
+@app.get("/orders")
+def get_orders(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    orders = db.query(Order).filter(Order.user_id == current_user.id).all()
+    if orders is None:
+        raise HTTPException(status_code = 404, detail = "No orders Found!")
+    return orders
