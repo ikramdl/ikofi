@@ -67,7 +67,8 @@ class LoginRequest(BaseModel):
     email: str
     password: str
     
-
+class UpdateCartRequest(BaseModel):
+    quantity: int = Field(ge=1)
 #------------------------------------------------------------------------------------------------------------------------------------#
 
 @app.get("/")
@@ -191,6 +192,27 @@ def add_to_cart(order: OrderItemRequest, db: Session = Depends(get_db), current_
     return {
         "message": "Your cart has been updated"
     }
+#-----------------------------------------------------------PUT CART-----------------------------------------------------------------#
+
+@app.put("/cart")
+def update_cart(item_id: int, order: UpdateCartRequest, db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    current_order = db.query(Order).filter(Order.user_id == current_user.id, Order.status == "Pending").first()
+    if current_order is None:
+        raise HTTPException( status_code = 404, detail = "Cart is Empty")
+    order_item = db.query(OrderItem).filter(OrderItem.id == current_order.id, OrderItem.item_id == item_id).first()
+    if order_item is None:
+        raise HTTPException(status_code = 404, detail = "Item not found in cart")
+    order_item.quantity = order.quantity
+    current_order.grand_total = 0
+    for order_item in current_order.items:
+        menu_item = db.query(MenuItem).filter(MenuItem.id == order_item.item_id).first()
+        current_order.grand_total += menu_item.price * order_item.quantity
+    db.commit()
+
+    return {
+        "message": "Cart updated successfully"
+    }
+
 
 #-----------------------------------------------------------GET CART-----------------------------------------------------------------#
 
