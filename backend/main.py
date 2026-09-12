@@ -341,3 +341,30 @@ def get_orders(db: Session = Depends(get_db), current_user = Depends(get_current
     if not orders:
         raise HTTPException(status_code = 404, detail = "No orders Found!")
     return orders
+#-----------------------------------------------------------GET ORDER (BY ID)------------------------------------------------------------------#
+
+@app.get("/orders/{order_id}")
+def get_order(order_id:int, db:Session = Depends(get_db), current_user = Depends(get_current_user)):
+    order = db.query(Order).filter(Order.id == order_id, Order.user_id == current_user.id).first()
+    if not order:
+        raise HTTPException(status_code = 404, detail = "Order Not Found")
+    order_items = db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+    result = []
+    for order_item in order_items:
+        item = db.query(MenuItem).filter(MenuItem.id == order_item.item_id).first()
+        result_item = {
+        "item_id": item.id,
+        "name": item.name,
+        "price": item.price,
+        "quantity": order_item.quantity,
+        "total": item.price * order_item.quantity
+        }
+        result.append(result_item)
+    return {
+    "order_id": order.id,
+    "created_at": order.created_at,
+    "status": order.status,
+    "grand_total": order.grand_total,
+    "items": result
+    }
+    
